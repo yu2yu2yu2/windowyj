@@ -400,6 +400,110 @@ pre {
   padding: 15px;
   margin: 15px 0;
 }
+
+/* 告警面板样式 */
+.alert-group {
+  margin-bottom: 15px;
+  padding: 10px;
+  border-radius: 5px;
+  border-left: 4px solid;
+}
+
+.alert-group.high-risk {
+  background-color: #fff5f5;
+  border-left-color: #e53e3e;
+}
+
+.alert-group.medium-risk {
+  background-color: #fffbf0;
+  border-left-color: #dd6b20;
+}
+
+.alert-item {
+  margin-bottom: 10px;
+  padding: 8px;
+  background-color: rgba(255,255,255,0.7);
+  border-radius: 3px;
+}
+
+.alert-desc {
+  color: #666;
+  font-size: 14px;
+}
+
+.recommendations {
+  margin-top: 20px;
+  padding: 15px;
+  background-color: #f0f8ff;
+  border-radius: 5px;
+  border-left: 4px solid #3182ce;
+}
+
+.recommendation-item {
+  margin-bottom: 15px;
+}
+
+.recommendation-item h5 {
+  margin: 0 0 8px 0;
+  color: #2d3748;
+}
+
+.recommendation-item ul {
+  margin: 5px 0;
+  padding-left: 20px;
+}
+
+.emergency-actions {
+  margin-top: 10px;
+  padding: 8px;
+  background-color: #fed7d7;
+  border-radius: 3px;
+}
+
+.no-alerts {
+  text-align: center;
+  padding: 20px;
+  color: #38a169;
+  font-size: 16px;
+}
+
+/* 提示消息样式 */
+.alert {
+  position: fixed;
+  top: 20px;
+  right: 20px;
+  padding: 12px 20px;
+  border-radius: 5px;
+  color: white;
+  font-weight: bold;
+  z-index: 1000;
+  max-width: 400px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+}
+
+.alert-info {
+  background-color: #3182ce;
+}
+
+.alert-success {
+  background-color: #38a169;
+}
+
+.alert-error {
+  background-color: #e53e3e;
+}
+
+.alert button {
+  background: none;
+  border: none;
+  color: white;
+  font-size: 18px;
+  cursor: pointer;
+  margin-left: 10px;
+}
 </style>
 
 <script>
@@ -415,7 +519,8 @@ const TAB_TITLES = {
   logs: "📋 日志分析",
   tasks: "⏰ 计划任务",
   malware: "🦠 恶意软件检测",
-  stats: "📈 安全统计"
+  stats: "📈 安全统计",
+  guide: "📖 应急指南"
 };
 
 const SUB_TAB_TITLES = {
@@ -429,7 +534,8 @@ const SUB_TAB_TITLES = {
   logs: ["📚 排查教程", "登录失败记录", "系统错误事件", "应用程序错误事件"],
   tasks: ["📚 排查教程", "活动计划任务", "可疑计划任务"],
   malware: ["📚 排查教程", "Windows Defender状态", "可疑网络连接", "异常进程检查"],
-  stats: ["📚 统计教程", "用户安全统计", "进程安全统计", "网络安全统计", "文件系统统计", "注册表统计", "计划任务统计", "日志统计", "安全防护状态", "安全风险评估", "专业安全建议"]
+  stats: ["📚 统计教程", "用户安全统计", "进程安全统计", "网络安全统计", "文件系统统计", "注册表统计", "计划任务统计", "日志统计", "安全防护状态", "安全风险评估", "专业安全建议"],
+  guide: ["🎯 应急响应流程", "🔍 判断技巧大全", "📋 检查清单", "💡 专业建议", "🛠️ 工具使用", "📚 学习资源"]
 };
 
 let gTabs = Object.keys(TAB_TITLES);
@@ -1062,14 +1168,154 @@ Get-CimInstance -ClassName Win32_StartupCommand | Where-Object {$_.Command -matc
 document.getElementById('fileInput').addEventListener('change', function(e) {
   const file = e.target.files[0];
   if (file) {
-    const reader = new FileReader();
-    reader.onload = function(e) {
-      gContent = e.target.result;
-      parseAndRenderReport(gContent);
-    };
-    reader.readAsText(file);
+    // 显示上传进度
+    showAlert('正在分析文件，请稍候...', 'info');
+    
+    // 使用FormData上传文件到后端API
+    const formData = new FormData();
+    formData.append('file', file);
+    
+    fetch('/analyze', {
+      method: 'POST',
+      body: formData
+    })
+    .then(response => response.json())
+    .then(result => {
+      if (result.success) {
+        // 处理分析结果
+        processAnalysisResult(result);
+        
+        // 同时读取文件内容用于显示
+        const reader = new FileReader();
+        reader.onload = function(e) {
+          gContent = e.target.result;
+          parseAndRenderReport(gContent);
+        };
+        reader.readAsText(file);
+      } else {
+        showAlert('文件分析失败: ' + (result.error || '未知错误'), 'error');
+      }
+    })
+    .catch(error => {
+      console.error('分析错误:', error);
+      showAlert('文件分析失败: ' + error.message, 'error');
+      
+      // 如果API失败，仍然尝试本地解析
+      const reader = new FileReader();
+      reader.onload = function(e) {
+        gContent = e.target.result;
+        parseAndRenderReport(gContent);
+      };
+      reader.readAsText(file);
+    });
   }
 });
+
+// 处理分析结果
+function processAnalysisResult(result) {
+  // 更新告警面板
+  updateAlertsPanel(result.alerts, result.recommendations);
+  
+  // 显示分析完成消息
+  const alertCount = result.alerts ? result.alerts.length : 0;
+  const riskLevel = alertCount > 5 ? '高风险' : alertCount > 2 ? '中等风险' : '低风险';
+  showAlert(`分析完成！发现 ${alertCount} 个安全告警，风险等级：${riskLevel}`, 'success');
+}
+
+// 更新告警面板
+function updateAlertsPanel(alerts, recommendations) {
+  const alertsContainer = document.querySelector('.alert-container');
+  if (!alertsContainer) return;
+  
+  let alertsHtml = '';
+  
+  if (alerts && alerts.length > 0) {
+    // 按严重程度分组
+    const alertsBySeverity = {
+      high: alerts.filter(a => a.severity === 'high'),
+      medium: alerts.filter(a => a.severity === 'medium'),
+      low: alerts.filter(a => a.severity === 'low')
+    };
+    
+    // 显示高危告警
+    if (alertsBySeverity.high.length > 0) {
+      alertsHtml += `<div class="alert-group high-risk">
+        <h4>🚨 高危告警 (${alertsBySeverity.high.length})</h4>`;
+      alertsBySeverity.high.forEach(alert => {
+        alertsHtml += `<div class="alert-item">
+          <strong>${alert.rule_name}</strong><br>
+          <span class="alert-desc">${alert.description}</span><br>
+          <small>行号: ${alert.line_number} | 类别: ${alert.category}</small>
+        </div>`;
+      });
+      alertsHtml += '</div>';
+    }
+    
+    // 显示中危告警
+    if (alertsBySeverity.medium.length > 0) {
+      alertsHtml += `<div class="alert-group medium-risk">
+        <h4>⚠️ 中危告警 (${alertsBySeverity.medium.length})</h4>`;
+      alertsBySeverity.medium.forEach(alert => {
+        alertsHtml += `<div class="alert-item">
+          <strong>${alert.rule_name}</strong><br>
+          <span class="alert-desc">${alert.description}</span><br>
+          <small>行号: ${alert.line_number} | 类别: ${alert.category}</small>
+        </div>`;
+      });
+      alertsHtml += '</div>';
+    }
+    
+    // 显示处置建议
+    if (recommendations && recommendations.length > 0) {
+      alertsHtml += `<div class="recommendations">
+        <h4>💡 处置建议</h4>`;
+      recommendations.forEach(rec => {
+        alertsHtml += `<div class="recommendation-item">
+          <h5>${rec.category} (${rec.priority}优先级)</h5>
+          <ul>`;
+        rec.actions.forEach(action => {
+          alertsHtml += `<li>${action}</li>`;
+        });
+        alertsHtml += '</ul>';
+        
+        if (rec.emergency_actions && rec.emergency_actions.length > 0) {
+          alertsHtml += '<div class="emergency-actions"><strong>紧急措施：</strong><ul>';
+          rec.emergency_actions.forEach(action => {
+            alertsHtml += `<li>${action}</li>`;
+          });
+          alertsHtml += '</ul></div>';
+        }
+        alertsHtml += '</div>';
+      });
+      alertsHtml += '</div>';
+    }
+  } else {
+    alertsHtml = '<div class="no-alerts">✅ 未发现安全告警，系统状态良好</div>';
+  }
+  
+  alertsContainer.innerHTML = alertsHtml;
+}
+
+// 显示提示消息
+function showAlert(message, type = 'info') {
+  // 创建提示元素
+  const alertDiv = document.createElement('div');
+  alertDiv.className = `alert alert-${type}`;
+  alertDiv.innerHTML = `
+    <span>${message}</span>
+    <button onclick="this.parentElement.remove()">×</button>
+  `;
+  
+  // 添加到页面顶部
+  document.body.insertBefore(alertDiv, document.body.firstChild);
+  
+  // 3秒后自动消失
+  setTimeout(() => {
+    if (alertDiv.parentElement) {
+      alertDiv.remove();
+    }
+  }, 3000);
+}
 
 // 解析并渲染报告
 function parseAndRenderReport(content) {
@@ -1110,6 +1356,7 @@ function parseAndRenderReport(content) {
   
   // 生成概览数据
   data.summary = generateSummaryContent(data);
+  data.guide = generateGuideContent();
   
   renderTabs(data);
 }
@@ -1167,6 +1414,10 @@ function parseStatsSection(content) {
   return parseSystemSection(content);
 }
 
+function parseGuideSection(content) {
+  return parseSystemSection(content);
+}
+
 // 生成概览内容
 function generateSummaryContent(data) {
   let summary = "Windows系统应急响应报告概览\n\n";
@@ -1198,6 +1449,565 @@ function generateSummaryContent(data) {
     "智能建议": "根据发现的问题提供处置建议...",
     "检查清单": "Windows安全检查清单...",
     "专业总结": "基于NIST框架的专业分析总结..."
+  };
+}
+
+// 生成应急指南内容
+function generateGuideContent() {
+  return {
+    "🎯 应急响应流程": `
+Windows应急响应完整流程指南
+
+📋 阶段1：准备阶段（平时准备）
+□ 建立应急响应团队和联系方式
+□ 准备应急响应工具和脚本
+□ 制定应急响应预案和流程
+□ 定期进行应急演练
+□ 建立系统基线和监控
+
+🔍 阶段2：识别阶段（发现问题）
+1. 收集告警信息和异常现象
+2. 初步判断是否为安全事件
+3. 确定影响范围和严重程度
+4. 启动应急响应流程
+5. 通知相关人员和管理层
+
+🚫 阶段3：遏制阶段（控制影响）
+立即措施：
+□ 隔离受影响系统（断网但不关机）
+□ 阻断可疑网络连接
+□ 禁用可疑用户账户
+□ 停止可疑进程和服务
+
+短期措施：
+□ 修改所有账户密码
+□ 更新安全策略和规则
+□ 加强监控和日志记录
+□ 部署临时安全措施
+
+🧹 阶段4：根除阶段（清除威胁）
+1. 深度扫描和分析
+2. 清除恶意代码
+3. 系统加固
+
+🔄 阶段5：恢复阶段（恢复业务）
+1. 系统验证
+2. 逐步恢复
+3. 持续监控
+
+📝 阶段6：总结阶段（经验教训）
+1. 事件分析报告
+2. 改进措施
+3. 预防措施
+`,
+    "🔍 判断技巧大全": `
+Windows应急响应判断技巧（大白话版）
+
+👥 用户账户安全判断
+
+🚨 高危信号：
+✗ 发现除了Administrator外还有其他管理员账户
+✗ 有用户的SID是500（超级管理员权限）
+✗ 发现从未登录但启用的账户
+✗ 最近新增的可疑用户账户
+
+✅ 正常情况：
+✓ 只有Administrator一个管理员账户
+✓ 普通用户都有正常的登录记录
+✓ 用户权限分配合理，遵循最小权限原则
+✓ 没有异常的权限提升
+
+💡 判断技巧：
+1. "管理员越少越安全" - 管理员账户应该控制在最少数量
+2. "陌生账户要怀疑" - 不认识的账户要仔细核实
+3. "权限过大有问题" - 普通用户不应该有管理员权限
+4. "登录记录看端倪" - 异常时间、异常地点的登录要注意
+
+⚙️ 进程安全判断
+
+🚨 可疑进程特征：
+✗ 在系统目录外运行的系统进程名
+✗ 占用CPU或内存异常高的进程
+✗ 进程路径包含临时目录、下载目录
+✗ 进程名是随机字符串或模仿系统进程
+✗ PowerShell、CMD长时间运行
+
+✅ 正常进程特征：
+✓ 在正确系统目录下的系统进程
+✓ 有数字签名的知名软件进程
+✓ 资源占用正常的业务进程
+✓ 启动时间与系统启动时间匹配
+
+💡 判断技巧：
+1. "位置不对必有鬼" - 系统进程应该在系统目录
+2. "资源占用看异常" - CPU、内存占用过高要注意
+3. "进程树看关系" - 父子进程关系要合理
+4. "签名验证很重要" - 没有签名的进程要谨慎
+
+🌐 网络连接判断
+
+🚨 危险网络连接：
+✗ 连接到可疑外网IP（特别是境外IP）
+✗ 使用非标准端口的连接
+✗ 大量并发连接
+✗ 连接到已知恶意IP
+✗ 4444、1234等常见后门端口
+
+✅ 正常网络连接：
+✓ 连接到内网服务器
+✓ 使用标准端口（80、443、22、3389等）
+✓ 连接到知名服务商IP
+✓ 业务相关的正常连接
+
+💡 判断技巧：
+1. "内网连接相对安全" - 内网IP通常风险较低
+2. "外网连接要审查" - 所有外网连接都要确认必要性
+3. "端口异常要警惕" - 非标准端口连接要重点关注
+4. "流量大小看异常" - 异常大的数据传输要注意
+`,
+    "📋 检查清单": `
+Windows应急响应检查清单
+
+🚨 紧急处置清单（30分钟内完成）
+□ 1. 确认安全事件性质和影响范围
+□ 2. 通知应急响应团队和管理层
+□ 3. 隔离受影响系统（断网不关机）
+□ 4. 保护现场，避免证据破坏
+□ 5. 收集初步证据和日志
+□ 6. 评估业务影响和风险等级
+□ 7. 启动相应级别的应急预案
+□ 8. 建立事件处理记录
+
+🔍 详细分析清单（2小时内完成）
+
+用户账户安全检查：
+□ 检查所有用户账户状态
+□ 确认管理员权限分配
+□ 审查最近的权限变更
+□ 检查异常登录记录
+
+进程和服务检查：
+□ 分析所有运行进程
+□ 检查系统服务状态
+□ 确认进程的合法性
+□ 查看进程网络连接
+
+网络连接分析：
+□ 检查所有网络连接
+□ 分析可疑IP地址
+□ 确认端口使用情况
+□ 检查防火墙日志
+
+文件系统检查：
+□ 扫描恶意软件
+□ 检查系统文件完整性
+□ 分析最近修改的文件
+□ 查看临时目录内容
+
+日志分析：
+□ 分析安全事件日志
+□ 检查系统错误日志
+□ 审查应用程序日志
+□ 分析网络设备日志
+
+🛠️ 系统加固清单（24小时内完成）
+
+账户安全加固：
+□ 重置所有用户密码
+□ 启用账户锁定策略
+□ 配置密码复杂度要求
+□ 启用多因素认证
+
+系统安全加固：
+□ 安装最新安全补丁
+□ 更新防病毒软件
+□ 配置防火墙规则
+□ 启用系统审计
+
+网络安全加固：
+□ 更新网络设备配置
+□ 加强访问控制
+□ 部署入侵检测系统
+□ 配置网络监控
+
+监控能力提升：
+□ 加强日志记录
+□ 部署安全监控工具
+□ 配置告警规则
+□ 建立威胁情报源
+`,
+    "💡 专业建议": `
+Windows应急响应专业建议
+
+🎯 实战应急响应技巧
+
+1分钟快速检查法：
+# 检查异常用户（重点关注）
+net user
+# 看是否有陌生用户，特别是管理员组的
+
+# 检查异常进程（重点关注）
+tasklist /svc
+# 看是否有可疑进程，特别是高CPU占用的
+
+# 检查网络连接（重点关注）
+netstat -an
+# 看是否有可疑外网连接，特别是非标准端口
+
+# 检查系统服务
+sc query type= service state= all
+# 看是否有可疑服务
+
+5分钟深度检查法：
+# 检查登录日志
+eventvwr.msc
+# 查看安全日志，关注登录失败和成功记录
+
+# 检查启动项
+msconfig
+# 查看是否有可疑的启动程序
+
+# 检查计划任务
+taskschd.msc
+# 查看是否有可疑的计划任务
+
+# 检查系统文件
+sfc /scannow
+# 检查系统文件完整性
+
+🔍 常见攻击手法识别
+
+权限提升攻击：
+特征：
+- 普通用户突然获得管理员权限
+- 系统中出现新的管理员账户
+- 发现权限提升工具或脚本
+
+应对：
+- 立即检查所有用户权限
+- 审查权限变更日志
+- 重置所有账户密码
+
+后门植入：
+特征：
+- 发现可疑的网络连接
+- 系统中出现未知的可执行文件
+- 防火墙规则被异常修改
+
+应对：
+- 断开网络连接
+- 查杀恶意软件
+- 检查系统完整性
+
+数据窃取：
+特征：
+- 异常的文件访问记录
+- 大量数据传输活动
+- 敏感文件被异常访问
+
+应对：
+- 立即保护敏感数据
+- 分析访问日志
+- 评估数据泄露风险
+
+👥 应急响应团队建设
+
+团队角色分工：
+- 事件指挥官：统筹协调，决策指挥
+- 技术分析师：技术分析，威胁研判
+- 系统管理员：系统操作，恢复处理
+- 安全工程师：安全加固，防护部署
+- 法务专员：法律合规，证据保全
+- 沟通协调员：内外沟通，信息发布
+
+🛠️ 工具和技术准备
+
+必备工具清单：
+- 应急响应脚本（本工具）
+- 恶意软件扫描工具
+- 网络分析工具
+- 日志分析工具
+- 取证分析工具
+- 系统监控工具
+
+🛡️ 预防措施建议
+
+日常安全措施：
+1. 定期安全评估和渗透测试
+2. 建立完善的监控和告警体系
+3. 制定详细的应急响应预案
+4. 定期进行应急演练
+5. 加强员工安全意识培训
+6. 建立威胁情报收集机制
+`,
+    "🛠️ 工具使用": `
+Windows应急响应工具使用指南
+
+🔧 本工具使用方法
+
+1. 数据收集阶段：
+   - 运行PowerShell脚本：windows_emergency_response.ps1
+   - 脚本会自动收集系统信息、用户信息、进程信息等
+   - 生成详细的应急响应报告文件
+
+2. 数据分析阶段：
+   - 启动Web分析平台：python windows_rules_engine.py
+   - 访问主页面：http://localhost:12002
+   - 上传报告文件进行智能分析
+
+3. 结果查看阶段：
+   - 查看分析结果和安全告警
+   - 获取专业的处置建议
+   - 下载详细的分析报告
+
+🛠️ 系统内置工具
+
+Windows事件查看器：
+eventvwr.msc
+- 查看系统日志、安全日志、应用程序日志
+- 重点关注登录事件、权限变更事件
+
+任务管理器：
+taskmgr.exe
+- 查看运行进程和系统性能
+- 识别异常进程和资源占用
+
+系统配置：
+msconfig.exe
+- 查看启动项和系统服务
+- 禁用可疑的启动程序
+
+注册表编辑器：
+regedit.exe
+- 检查注册表启动项
+- 查看系统配置信息
+
+网络连接查看：
+netstat -an
+- 查看所有网络连接
+- 识别可疑的外网连接
+
+用户账户管理：
+net user
+lusrmgr.msc
+- 查看所有用户账户
+- 管理用户权限
+
+🔍 第三方推荐工具
+
+Sysinternals Suite：
+- Process Explorer：详细进程分析
+- Autoruns：启动项全面检查
+- TCPView：网络连接实时监控
+- PsExec：远程执行命令
+
+安全扫描工具：
+- Malwarebytes：恶意软件扫描
+- YARA：恶意代码检测规则
+- Volatility：内存取证分析
+- Wireshark：网络流量分析
+
+📊 日志分析工具
+
+Windows PowerShell：
+Get-WinEvent -LogName Security
+Get-WinEvent -LogName System
+Get-WinEvent -LogName Application
+
+事件ID重点关注：
+- 4624：成功登录
+- 4625：登录失败
+- 4648：使用显式凭据登录
+- 4672：分配特殊权限
+- 4720：创建用户账户
+- 4726：删除用户账户
+- 4728：将成员添加到安全组
+- 4732：将成员添加到本地组
+
+🎯 实战技巧
+
+快速排查命令组合：
+# 一键检查用户和权限
+net user & net localgroup administrators
+
+# 一键检查进程和服务
+tasklist /svc & sc query type= service state= all
+
+# 一键检查网络连接
+netstat -an & netstat -b
+
+# 一键检查启动项
+wmic startup get caption,command,location
+
+# 一键检查计划任务
+schtasks /query /fo table /v
+
+自动化脚本示例：
+@echo off
+echo 开始应急响应快速检查...
+echo.
+echo 1. 检查用户账户
+net user
+echo.
+echo 2. 检查管理员组
+net localgroup administrators
+echo.
+echo 3. 检查运行进程
+tasklist
+echo.
+echo 4. 检查网络连接
+netstat -an
+echo.
+echo 5. 检查启动项
+wmic startup get caption,command
+echo.
+echo 应急响应快速检查完成！
+`,
+    "📚 学习资源": `
+Windows应急响应学习资源
+
+📖 官方文档
+
+Microsoft Security Response Center
+- Windows安全最佳实践
+- 安全更新和漏洞信息
+- 事件响应指南
+
+NIST Cybersecurity Framework
+- 网络安全框架标准
+- 事件响应流程规范
+- 风险管理指导
+
+SANS Incident Response Guide
+- 事件响应最佳实践
+- 实战案例分析
+- 工具使用指南
+
+🛠️ 实用工具学习
+
+Sysinternals Suite
+- 官方文档和使用教程
+- 实战案例分析
+- 高级功能详解
+
+YARA Rules
+- 恶意代码检测规则编写
+- 规则库维护和更新
+- 自定义检测规则
+
+Volatility Framework
+- 内存取证分析技术
+- 恶意软件内存分析
+- 高级取证技巧
+
+Wireshark
+- 网络流量分析技术
+- 协议分析和解码
+- 网络安全监控
+
+🎓 培训认证
+
+GCIH (GIAC Certified Incident Handler)
+- 事件处理专业认证
+- 实战技能验证
+- 行业认可度高
+
+GCFA (GIAC Certified Forensic Analyst)
+- 数字取证分析认证
+- 深度技术能力
+- 法庭证据处理
+
+CISSP (Certified Information Systems Security Professional)
+- 信息安全专业认证
+- 全面安全知识体系
+- 管理层认可
+
+CISM (Certified Information Security Manager)
+- 信息安全管理认证
+- 战略规划能力
+- 风险管理专长
+
+📚 推荐书籍
+
+《Windows Internals》
+- Windows系统内部机制
+- 深度技术原理
+- 系统调试技巧
+
+《Malware Analyst's Cookbook》
+- 恶意软件分析技术
+- 实战分析案例
+- 工具使用指南
+
+《Incident Response & Computer Forensics》
+- 事件响应完整流程
+- 计算机取证技术
+- 法律合规要求
+
+《The Art of Memory Forensics》
+- 内存取证分析技术
+- 高级分析方法
+- 实战案例研究
+
+🌐 在线资源
+
+GitHub安全项目
+- 开源安全工具
+- 检测规则库
+- 社区贡献代码
+
+安全博客和论坛
+- 最新威胁情报
+- 技术分析文章
+- 经验分享交流
+
+安全会议和培训
+- Black Hat / DEF CON
+- RSA Conference
+- 国内安全会议
+
+实验环境搭建
+- VirtualBox / VMware
+- Windows虚拟机
+- 恶意软件分析环境
+
+🎯 学习路径建议
+
+初级阶段（1-3个月）：
+1. 掌握Windows系统基础知识
+2. 学习基本的命令行操作
+3. 了解常见的安全威胁
+4. 熟悉基础安全工具
+
+中级阶段（3-6个月）：
+1. 深入学习事件响应流程
+2. 掌握日志分析技术
+3. 学习恶意软件分析基础
+4. 实践应急响应案例
+
+高级阶段（6-12个月）：
+1. 掌握高级取证分析技术
+2. 学习威胁狩猎方法
+3. 开发自定义检测规则
+4. 建立完整的响应体系
+
+专家阶段（1年以上）：
+1. 研究最新攻击技术
+2. 开发安全工具和平台
+3. 指导团队和培训他人
+4. 参与安全标准制定
+
+💡 实践建议
+
+1. 搭建实验环境进行练习
+2. 参与CTF竞赛提升技能
+3. 关注安全社区和论坛
+4. 定期进行应急演练
+5. 记录和分享学习心得
+6. 与同行交流经验
+
+记住：应急响应是一个需要持续学习和实践的领域，保持好奇心和学习热情是成功的关键！🛡️
+`
   };
 }
 
