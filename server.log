@@ -1,0 +1,35 @@
+
+🛡️ Windows应急响应分析系统启动成功!
+
+🌐 访问地址:
+   主页: http://localhost:12002
+   详细版查看器: http://localhost:12002/viewer
+   健康检查: http://localhost:12002/health
+
+📋 功能特性:
+   ✅ Windows系统安全检查
+   ✅ 智能威胁检测
+   ✅ 专业处置建议
+   ✅ 详细分析报告
+   ✅ Web界面展示
+
+🔧 使用方法:
+   1. 运行PowerShell脚本生成报告
+   2. 上传报告文件进行分析
+   3. 查看安全告警和处置建议
+
+按 Ctrl+C 停止服务器
+
+ * Serving Flask app 'windows_rules_engine'
+ * Debug mode: off
+2025-06-06 08:44:42,687 - INFO - [31m[1mWARNING: This is a development server. Do not use it in a production deployment. Use a production WSGI server instead.[0m
+ * Running on all addresses (0.0.0.0)
+ * Running on http://127.0.0.1:12002
+ * Running on http://10.2.61.144:12002
+2025-06-06 08:44:42,687 - INFO - [33mPress CTRL+C to quit[0m
+2025-06-06 08:44:52,320 - INFO - 127.0.0.1 - - [06/Jun/2025 08:44:52] "GET /health HTTP/1.1" 200 -
+2025-06-06 08:44:56,166 - INFO - 分析请求来自 127.0.0.1
+2025-06-06 08:44:56,168 - INFO - 分析完成: 发现 16 个告警，生成 3 条建议
+2025-06-06 08:44:56,169 - INFO - 127.0.0.1 - - [06/Jun/2025 08:44:56] "POST /analyze HTTP/1.1" 200 -
+2025-06-06 08:45:01,568 - INFO - 127.0.0.1 - - [06/Jun/2025 08:45:01] "POST /stats HTTP/1.1" 200 -
+2025-06-06 08:45:06,425 - INFO - 127.0.0.1 - - [06/Jun/2025 08:45:06] "GET /viewer HTTP/1.1" 200 -
